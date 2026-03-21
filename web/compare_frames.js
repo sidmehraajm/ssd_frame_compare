@@ -9,181 +9,69 @@ function imageDataToUrl(data) {
 
 app.registerExtension({
     name: "Matoo.CompareFrames",
-    async beforeRegisterNodeDef(nodeType, nodeData, app) {
-        if (nodeData.name !== "CompareFrames") return;
+    async nodeCreated(node) {
+        if (node.comfyClass !== "CompareFrames") return;
 
-        const onNodeCreated = nodeType.prototype.onNodeCreated;
-        nodeType.prototype.onNodeCreated = function () {
-            if (onNodeCreated) onNodeCreated.apply(this, arguments);
+        // 1. Create a dedicated HTML element for Nodes 2.0 compatibility
+        let canvasElement = document.createElement("canvas");
+        canvasElement.style.width = "100%";
+        canvasElement.style.height = "100%";
+        canvasElement.style.touchAction = "none"; 
+        canvasElement.style.cursor = "crosshair";
 
-            this.data = {
-                images: [[], []],
-                sliderX: 0.5,
-                isDraggingSlider: false,
-                isDraggingImage: false,
-                zoom: 1.0,
-                panX: 0,
-                panY: 0,
-                lastMouseX: 0,
-                lastMouseY: 0
-            };
+        // 2. Add it to the node as a DOM Widget
+        let previewWidget = node.addDOMWidget("framepreview", "preview", canvasElement, {
+            serialize: false,
+            hideOnZoom: false,
+        });
 
-            this.size = [512, 640];
-        };
+        let images = [[], []];
+        let sliderRatio = 0.5;
+        let isDragging = false;
+        let ctx = canvasElement.getContext("2d");
 
-        // Use ComfyUI's native local_pos for perfectly accurate mouse tracking
-        nodeType.prototype.onMouseMove = function (e, local_pos) {
-            if (!this.data) return false;
+        // 3. The Drawing Loop
+        function draw() {
+            if (!ctx) return;
             
-            const localX = local_pos[0];
-            const localY = local_pos[1];
-            const nodeWidth = this.size[0];
-            const padding = 10;
-            
-            if (this.data.isDraggingSlider) {
-                const x = (localX - padding) / (nodeWidth - 2 * padding);
-                this.data.sliderX = Math.max(0, Math.min(1, x));
-                this.setDirtyCanvas(true, true);
-                return true;
-            } else if (this.data.isDraggingImage) {
-                const dx = localX - this.data.lastMouseX;
-                const dy = localY - this.data.lastMouseY;
-                this.data.panX += dx;
-                this.data.panY += dy;
-                this.data.lastMouseX = localX;
-                this.data.lastMouseY = localY;
-                this.setDirtyCanvas(true, true);
-                return true;
-            }
-            return false;
-        };
-
-        nodeType.prototype.onMouseDown = function (e, local_pos) {
-            if (!this.data) return false;
-            
-            const localX = local_pos[0];
-            const localY = local_pos[1];
-            const marginTop = 120; 
-            const padding = 10;
-            const previewWidth = this.size[0] - 2 * padding;
-            
-            if (localY > marginTop) { 
-                const splitX = padding + this.data.sliderX * previewWidth;
-                
-                // 15px grab radius for the slider, otherwise it pans the image
-                if (Math.abs(localX - splitX) < 15) {
-                    this.data.isDraggingSlider = true;
-                } else {
-                    this.data.isDraggingImage = true;
-                    this.data.lastMouseX = localX;
-                    this.data.lastMouseY = localY;
-                }
-                return true; 
-            }
-            return false;
-        };
-
-        nodeType.prototype.onMouseUp = function (e, local_pos) {
-            if (!this.data) return false;
-            
-            const wasDragging = this.data.isDraggingSlider || this.data.isDraggingImage;
-            this.data.isDraggingSlider = false;
-            this.data.isDraggingImage = false;
-            
-            if (wasDragging) {
-                this.setDirtyCanvas(true, true);
-                return true;
-            }
-            return false;
-        };
-
-        // Double click the image area to reset pan
-        nodeType.prototype.onDblClick = function (e, local_pos) {
-            if (!this.data) return false;
-            if (local_pos[1] > 120) {
-                this.data.zoom = 1.0;
-                this.data.panX = 0;
-                this.data.panY = 0;
-                this.setDirtyCanvas(true, true);
-                return true;
-            }
-            return false;
-        };
-
-        const onExecuted = nodeType.prototype.onExecuted;
-        nodeType.prototype.onExecuted = async function (message) {
-            if (onExecuted) onExecuted.apply(this, arguments);
-
-            if (!this.data) {
-                this.data = { images: [[], []], sliderX: 0.5, panX: 0, panY: 0, zoom: 1.0 };
+            const rect = canvasElement.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) {
+                requestAnimationFrame(draw); 
+                return;
             }
             
-            this.data.images = [[], []];
-            const map = {1: "a", 2: "b"};
+            canvasElement.width = rect.width;
+            canvasElement.height = rect.height;
+            const w = canvasElement.width;
+            const h = canvasElement.height;
 
-            // PROPER ASYNC IMAGE LOADING: Prevents drawing blank frames
-            let promises = [];
-            for (let i = 1; i <= 2; i++) {
-                const images = message[`${map[i]}_images`] || [];
-                for (const imgData of images) {
-                    promises.push(new Promise((resolve) => {
-                        const img = new Image();
-                        img.onload = () => resolve();
-                        img.onerror = () => resolve(); // Prevent infinite hang on error
-                        img.src = imageDataToUrl(imgData);
-                        this.data.images[i - 1].push(img);
-                    }));
-                }
-            }
-            
-            await Promise.all(promises);
-            this.setDirtyCanvas(true, true);
-        };
-
-        nodeType.prototype.onDrawForeground = function (ctx) {
-            if (this.flags.collapsed) return;
-            if (!this.data) return; // Failsafe
-            
-            const nodeWidth = this.size[0];
-            const nodeHeight = this.size[1];
-            const marginTop = 120; 
-            const padding = 10;
-
-            const previewWidth = nodeWidth - 2 * padding;
-            const previewHeight = nodeHeight - marginTop - padding;
-
-            if (previewWidth <= 0 || previewHeight <= 0) return;
-
-            // Failsafe: Check if widgets exist before accessing them
-            let idxA = 0, idxB = 0;
-            if (this.widgets) {
-                const frame_a_widget = this.widgets.find(w => w.name === "frame_a");
-                const frame_b_widget = this.widgets.find(w => w.name === "frame_b");
-                if (frame_a_widget) idxA = frame_a_widget.value || 0;
-                if (frame_b_widget) idxB = frame_b_widget.value || 0;
-            }
-
-            const listA = this.data.images[0] || [];
-            const listB = this.data.images[1] || [];
-
-            const imgA = listA.length > 0 ? listA[Math.min(idxA, listA.length - 1)] : null;
-            const imgB = listB.length > 0 ? listB[Math.min(idxB, listB.length - 1)] : null;
-
-            const zoom = this.data.zoom || 1.0;
-            const panX = this.data.panX || 0;
-            const panY = this.data.panY || 0;
-            const splitX = padding + this.data.sliderX * previewWidth;
-
-            // 1. Draw solid background placeholder
             ctx.fillStyle = "#111";
-            ctx.fillRect(padding, marginTop, previewWidth, previewHeight);
+            ctx.fillRect(0, 0, w, h);
 
-            function drawImageFitted(img, x, y, w, h, clipX, clipW, zoom, panX, panY) {
+            // Fetch new Offset Widgets
+            let compFrame = 0, skipA = 0, skipB = 0;
+            if (node.widgets) {
+                const wComp = node.widgets.find(w => w.name === "compare_frame");
+                const wSkipA = node.widgets.find(w => w.name === "skip_a");
+                const wSkipB = node.widgets.find(w => w.name === "skip_b");
+                if (wComp) compFrame = wComp.value || 0;
+                if (wSkipA) skipA = wSkipA.value || 0;
+                if (wSkipB) skipB = wSkipB.value || 0;
+            }
+
+            // Calculate target frames (prevent going below 0)
+            const targetA = Math.max(0, compFrame + skipA);
+            const targetB = Math.max(0, compFrame + skipB);
+
+            // Fetch images based on calculated target frames
+            const imgA = images[0].length > 0 ? images[0][Math.min(targetA, images[0].length - 1)] : null;
+            const imgB = images[1].length > 0 ? images[1][Math.min(targetB, images[1].length - 1)] : null;
+
+            function drawImageFitted(img, clipX, clipW) {
                 if (!img || !img.complete || img.naturalWidth === 0) return;
                 ctx.save();
-                
                 ctx.beginPath();
-                ctx.rect(clipX, y, clipW, h);
+                ctx.rect(clipX, 0, clipW, h);
                 ctx.clip();
 
                 const imgRatio = img.naturalWidth / img.naturalHeight;
@@ -193,57 +81,51 @@ app.registerExtension({
                 if (imgRatio > targetRatio) {
                     dw = w;
                     dh = w / imgRatio;
-                    dx = x;
-                    dy = y + (h - dh) / 2;
+                    dx = 0;
+                    dy = (h - dh) / 2;
                 } else {
                     dh = h;
                     dw = h * imgRatio;
-                    dx = x + (w - dw) / 2;
-                    dy = y;
+                    dx = (w - dw) / 2;
+                    dy = 0;
                 }
-
-                const finalX = dx * zoom + panX;
-                const finalY = dy * zoom + panY;
-                const finalW = dw * zoom;
-                const finalH = dh * zoom;
-
-                ctx.drawImage(img, finalX, finalY, finalW, finalH);
+                ctx.drawImage(img, dx, dy, dw, dh);
                 ctx.restore();
             }
 
-            // 2. Draw active frames
-            if (imgA) drawImageFitted(imgA, padding, marginTop, previewWidth, previewHeight, padding, splitX - padding, zoom, panX, panY);
-            if (imgB) drawImageFitted(imgB, padding, marginTop, previewWidth, previewHeight, splitX, (padding + previewWidth) - splitX, zoom, panX, panY);
+            const splitX = w * sliderRatio;
 
-            // 3. UI Info Overlay
+            if (imgA) drawImageFitted(imgA, 0, splitX);
+            if (imgB) drawImageFitted(imgB, splitX, w - splitX);
+
+            // Draw UI Overlay with detailed offset info
             ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
-            ctx.fillRect(padding, marginTop, previewWidth, 24);
-            
+            ctx.fillRect(0, 0, w, 24);
             ctx.fillStyle = "#FFF";
             ctx.font = "12px sans-serif";
-            ctx.textAlign = "left";
             ctx.textBaseline = "middle";
-            ctx.fillText(`A: Frame ${idxA}`, padding + 8, marginTop + 12);
             
+            ctx.textAlign = "left";
+            ctx.fillText(`A: Frame ${targetA}`, 8, 12);
+            
+            ctx.fillStyle = "#00b894";
+            ctx.textAlign = "center";
+            ctx.fillText(`Base Frame: ${compFrame}`, w / 2, 12);
+            
+            ctx.fillStyle = "#FFF";
             ctx.textAlign = "right";
-            ctx.fillText(`B: Frame ${idxB}`, padding + previewWidth - 8, marginTop + 12);
+            ctx.fillText(`B: Frame ${targetB}`, w - 8, 12);
 
-            if (panX !== 0 || panY !== 0) {
-                ctx.textAlign = "center";
-                ctx.fillStyle = "#00b894";
-                ctx.fillText(`Pan Active (Dbl-click reset)`, padding + previewWidth / 2, marginTop + 12);
-            }
-
-            // 4. Draw Slider Line
+            // Draw Slider Line
             ctx.lineWidth = 2;
             ctx.strokeStyle = "#00b894";
             ctx.beginPath();
-            ctx.moveTo(splitX, marginTop);
-            ctx.lineTo(splitX, marginTop + previewHeight);
+            ctx.moveTo(splitX, 0);
+            ctx.lineTo(splitX, h);
             ctx.stroke();
 
-            // 5. Draw Slider Handle
-            const handleY = marginTop + previewHeight / 2;
+            // Draw Slider Handle
+            const handleY = h / 2;
             ctx.fillStyle = "#ffffff";
             ctx.shadowColor = "rgba(0,0,0,0.5)";
             ctx.shadowBlur = 4;
@@ -259,8 +141,96 @@ app.registerExtension({
             ctx.fillStyle = "#222";
             ctx.font = "9px Arial";
             ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
             ctx.fillText("◀▶", splitX, handleY);
+        }
+
+        // --- Hook into ALL three widgets to force a redraw when numbers change ---
+        const setupWidgetCallbacks = () => {
+            if (node.widgets) {
+                for (const w of node.widgets) {
+                    if (w.name === "compare_frame" || w.name === "skip_a" || w.name === "skip_b") {
+                        if (!w._draw_hooked) {
+                            const originalCallback = w.callback;
+                            w.callback = function () {
+                                if (originalCallback) originalCallback.apply(this, arguments);
+                                requestAnimationFrame(draw); 
+                            };
+                            w._draw_hooked = true;
+                        }
+                    }
+                }
+            }
+        };
+
+        setupWidgetCallbacks();
+        setTimeout(setupWidgetCallbacks, 100);
+        // -----------------------------------------------------------------------
+
+        // 4. Standard HTML Event Listeners
+        canvasElement.addEventListener("pointerdown", (e) => {
+            const rect = canvasElement.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const splitX = rect.width * sliderRatio;
+            
+            if (Math.abs(x - splitX) < 20) {
+                isDragging = true;
+                canvasElement.setPointerCapture(e.pointerId); 
+                e.preventDefault();
+                e.stopPropagation(); 
+            }
+        });
+
+        canvasElement.addEventListener("pointermove", (e) => {
+            if (!isDragging) return;
+            const rect = canvasElement.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            
+            sliderRatio = Math.max(0, Math.min(1, x / rect.width));
+            requestAnimationFrame(draw);
+            
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        const stopDrag = (e) => {
+            if (isDragging) {
+                isDragging = false;
+                canvasElement.releasePointerCapture(e.pointerId);
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        };
+        
+        canvasElement.addEventListener("pointerup", stopDrag);
+        canvasElement.addEventListener("pointercancel", stopDrag);
+
+        const originalOnResize = node.onResize;
+        node.onResize = function() {
+            if (originalOnResize) originalOnResize.apply(this, arguments);
+            requestAnimationFrame(draw);
+        };
+
+        // 5. Load Data on Execution
+        node.onExecuted = async function (message) {
+            images = [[], []];
+            const map = {1: "a", 2: "b"};
+
+            let promises = [];
+            for (let i = 1; i <= 2; i++) {
+                const imgs = message[`${map[i]}_images`] || [];
+                for (const imgData of imgs) {
+                    promises.push(new Promise((resolve) => {
+                        const img = new Image();
+                        img.onload = () => resolve();
+                        img.onerror = () => resolve(); 
+                        img.src = imageDataToUrl(imgData);
+                        images[i - 1].push(img);
+                    }));
+                }
+            }
+            
+            await Promise.all(promises);
+            requestAnimationFrame(draw);
         };
     },
 });

@@ -1,5 +1,7 @@
 # 🖼️ Compare Specific Frames – ComfyUI Extension
 
+![Compare Frames Node](node.jpg)
+
 **Compare Specific Frames** is a custom [ComfyUI](https://github.com/comfyanonymous/ComfyUI) extension designed for precise, frame-by-frame analysis of image sequences and video batches. It extracts specific frames from two different visual sequences and renders them in an interactive, wipe-style A/B comparison slider directly within the ComfyUI interface.
 
 This tool is highly effective for evaluating the exact frame differences in video generation pipelines, upscaling results, or style transfers.
@@ -8,10 +10,10 @@ This tool is highly effective for evaluating the exact frame differences in vide
 
 ## 🚀 Features
 
-* **Targeted Frame Extraction:** Use standard integer widgets to select exactly which frame to pull from Sequence A and Sequence B.
+* **Frontend Caching:** It caches the image batches directly in the browser. You can scrub through frame numbers and the UI updates instantly—no need to re-queue the prompt.
+* **Offset Syncing:** It features a base `compare_frame` "playhead", plus `skip_a` and `skip_b` offsets. This allows you to perfectly sync up two videos that start at different times and scrub through them together.
 * **Interactive Wipe Preview:** Click and drag the horizontal slider on the node to seamlessly compare the two isolated frames.
-* **Automatic Dimension Handling:** The canvas dynamically scales to fit the aspect ratio of your target images.
-* **Lightweight UI:** Extracts only the required frames in the backend to minimize frontend memory load.
+* **Nodes 2.0 Compatible:** Fully updated to work seamlessly with ComfyUI's new Vue-based frontend.
 
 ---
 
@@ -26,6 +28,7 @@ ComfyUI/
 └── custom_nodes/
     └── frame_comparer/
         ├── README.md             <-- (This file)
+        ├── node.jpg              <-- (Preview Image)
         ├── __init__.py           <-- (Node registration)
         ├── compare_frames.py     <-- (Backend logic)
         └── web/
