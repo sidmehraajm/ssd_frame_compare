@@ -2,17 +2,17 @@ import torch
 from nodes import PreviewImage
 
 
-class CompareFrames(PreviewImage):
+class VideoCompare(PreviewImage):
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
                 "images_a": ("IMAGE",),
                 "images_b": ("IMAGE",),
-                "compare_frame": ("INT",   {"default": 0,    "min": 0,      "max": 99999, "step": 1}),
-                "skip_a":        ("INT",   {"default": 0,    "min": -99999, "max": 99999, "step": 1}),
-                "skip_b":        ("INT",   {"default": 0,    "min": -99999, "max": 99999, "step": 1}),
-                "fps":           ("FLOAT", {"default": 12.0, "min": 0.1,    "max": 60.0,  "step": 0.1}),
+                "fps": ("FLOAT", {"default": 12.0, "min": 0.1, "max": 60.0, "step": 0.1}),
+            },
+            "optional": {
+                "images_b": ("IMAGE",),
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -22,15 +22,13 @@ class CompareFrames(PreviewImage):
 
     RETURN_TYPES = ()
     OUTPUT_NODE = True
-    FUNCTION = "compare_frames"
+    FUNCTION = "compare_videos"
     CATEGORY = "preview"
 
-    def compare_frames(self, images_a, images_b, compare_frame, skip_a, skip_b, fps=12.0,
-                       prompt=None, extra_pnginfo=None, filename_prefix="temp.compare_frames."):
+    def compare_videos(self, images_a, images_b=None, fps=12.0, prompt=None, extra_pnginfo=None, filename_prefix="temp.video_compare."):
         result = {"ui": {"a_images": [], "b_images": [], "fps": [fps]}}
 
-        print(f"CompareFrames: A={len(images_a) if images_a is not None else 0} frames, "
-              f"B={len(images_b) if images_b is not None else 0} frames, fps={fps}")
+        print(f"VideoCompare: A={len(images_a) if images_a is not None else 0} frames, B={len(images_b) if images_b is not None else 0} frames, fps={fps}")
 
         if images_a is not None:
             res_a = self.save_images(images_a, filename_prefix, prompt, extra_pnginfo)
