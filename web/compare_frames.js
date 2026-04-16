@@ -276,8 +276,26 @@ app.registerExtension({
 
         function drawSlider(imgA, imgB, w, h) {
             const sx = w * sliderRatio;
-            fitInRegion(imgA, 0,  0, sx,     h);
-            fitInRegion(imgB, sx, 0, w - sx, h);
+
+            // Both images are fitted to the FULL canvas, then clipped to their side.
+            // This creates the reveal effect rather than side-by-side shrinking.
+            function fitFull(img, clipX, clipW) {
+                if (!img) return;
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(clipX, 0, clipW, h);
+                ctx.clip();
+                const r = img.naturalWidth / img.naturalHeight;
+                let dw, dh, dx, dy;
+                if (r > w / h) { dw = w; dh = w / r; dx = 0; dy = (h - dh) / 2; }
+                else           { dh = h; dw = h * r; dx = (w - dw) / 2; dy = 0; }
+                ctx.drawImage(img, dx, dy, dw, dh);
+                ctx.restore();
+            }
+
+            fitFull(imgA, 0,  sx);
+            fitFull(imgB, sx, w - sx);
+
             ctx.strokeStyle = "#00b894"; ctx.lineWidth = 2;
             ctx.beginPath(); ctx.moveTo(sx, 24); ctx.lineTo(sx, h); ctx.stroke();
             // handle
