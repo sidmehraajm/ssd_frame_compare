@@ -7,12 +7,14 @@ class CompareFrames(PreviewImage):
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "images_a": ("IMAGE",),
-                "images_b": ("IMAGE",),
                 "compare_frame": ("INT",   {"default": 0,    "min": 0,      "max": 99999, "step": 1}),
                 "skip_a":        ("INT",   {"default": 0,    "min": -99999, "max": 99999, "step": 1}),
                 "skip_b":        ("INT",   {"default": 0,    "min": -99999, "max": 99999, "step": 1}),
                 "fps":           ("FLOAT", {"default": 12.0, "min": 0.1,    "max": 60.0,  "step": 0.1}),
+            },
+            "optional": {
+                "images_a": ("IMAGE",),
+                "images_b": ("IMAGE",),
             },
             "hidden": {
                 "prompt": "PROMPT",

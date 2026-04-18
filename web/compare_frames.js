@@ -347,7 +347,22 @@ app.registerExtension({
             if (!imgA && !imgB) {
                 ctx.fillStyle = "#444"; ctx.font = "14px sans-serif";
                 ctx.textAlign = "center"; ctx.textBaseline = "middle";
-                ctx.fillText("Run the node to load frames", w / 2, h / 2);
+                ctx.fillText("Connect images_a and/or images_b, then run the node", w / 2, h / 2);
+                return;
+            }
+
+            // Single sequence — show full width, no comparison UI
+            const onlyOne = !(framesA.length > 0 && framesB.length > 0);
+            if (onlyOne) {
+                const img   = imgA || imgB;
+                const label = imgA ? `A: ${targetA}` : `B: ${targetB}`;
+                fitInRegion(img, 0, 0, w, h);
+                ctx.fillStyle = "rgba(0,0,0,.65)"; ctx.fillRect(0, 0, w, 24);
+                ctx.font = "12px sans-serif"; ctx.textBaseline = "middle";
+                ctx.fillStyle = "#fff"; ctx.textAlign = "left";
+                ctx.fillText(label, 8, 12);
+                ctx.fillStyle = "#00b894"; ctx.textAlign = "right";
+                ctx.fillText(`Frame ${base}`, w - 8, 12);
                 return;
             }
 
@@ -461,7 +476,10 @@ app.registerExtension({
             scrubber.max   = Math.max(0, total - 1);
             scrubber.value = playFrame;
             updateScrubberLabel();
-            infoLabel.textContent = `A: ${framesA.length} | B: ${framesB.length} frames  •  ${fps} fps`;
+            const parts = [];
+            if (framesA.length > 0) parts.push(`A: ${framesA.length} frames`);
+            if (framesB.length > 0) parts.push(`B: ${framesB.length} frames`);
+            infoLabel.textContent = parts.join(" | ") + `  •  ${fps} fps`;
             drawFrame();
         };
 
