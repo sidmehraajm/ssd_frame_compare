@@ -1,0 +1,14 @@
+[project]
+name = "comfyui-compare-frames"
+version = "1.0.0"
+description = "Interactive A/B frame comparison node with slider, side-by-side, overlay, and video playback — directly inside ComfyUI."
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+
+[project.urls]
+Repository = "https://github.com/sidmehraajm/ssd_frame_compare"
+
+[tool.comfy]
+PublisherId = "matoo"
+DisplayName = "Compare Frames"
+Icon = "node.jpg"

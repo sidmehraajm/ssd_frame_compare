@@ -1,4 +1,3 @@
-import torch
 from nodes import PreviewImage
 
 
@@ -27,7 +26,7 @@ class CompareFrames(PreviewImage):
     FUNCTION = "compare_frames"
     CATEGORY = "preview"
 
-    def compare_frames(self, images_a, images_b, compare_frame, skip_a, skip_b, fps=12.0,
+    def compare_frames(self, compare_frame, skip_a, skip_b, fps=12.0, images_a=None, images_b=None,
                        prompt=None, extra_pnginfo=None, filename_prefix="temp.compare_frames."):
         result = {"ui": {"a_images": [], "b_images": [], "fps": [fps]}}
 
